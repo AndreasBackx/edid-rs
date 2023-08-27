@@ -196,10 +196,10 @@ impl ManufacturerID {
     fn parse(r: &mut Reader) -> Result<ManufacturerID> {
         // The manufacturer ID is stored as three 5-bit
         // characters in a 16-bit little endian field.
-        let k = r.read_u16()?;
-        let c1 = ((k & 0b0111110000000000) >> 10) as u8;
-        let c2 = ((k & 0b0000001111100000) >> 05) as u8;
-        let c3 = ((k & 0b0000000000011111) >> 00) as u8;
+        let k = r.read_u16()?.swap_bytes();
+        let c1 = ((k & 0b0111110000000000) >> 10) as u8 + 64;
+        let c2 = ((k & 0b0000001111100000) >> 05) as u8 + 64;
+        let c3 = ((k & 0b0000000000011111) >> 00) as u8 + 64;
         Ok(ManufacturerID(c1 as char, c2 as char, c3 as char))
     }
 }
