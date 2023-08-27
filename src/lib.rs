@@ -1,17 +1,17 @@
 #![cfg_attr(feature = "no_std", no_std)]
 
 //! A pure-Rust crate to parse EDID data with `no_std` support. This crate does not include methods for gathering the data from the monitor.
-//! 
+//!
 //! To enable `no_std` support, ensure the `alloc` crate is available, use feature `no_std`, and then implement `edid_rs::Read` instead of `std::io::Read` for data sources.
-//! 
+//!
 //! ### Examples
-//! 
+//!
 //! Basic usage:
 //! ```rust
 //! extern crate edid_rs;
-//! 
+//!
 //! use std::io::Cursor;
-//! 
+//!
 //! fn main() {
 //!     let bytes = vec![...];
 //!     println!("{:?}",
@@ -19,7 +19,7 @@
 //!     );
 //! }
 //! ```
-//! 
+//!
 //! Reading current monitor EDID on OSX:
 //! ```text
 //! $ ioreg -l -w0 -d0 -r -c AppleBacklightDisplay | grep IODisplayEDID - | tail -c 258 | head -c 256 | xxd -r -p | cargo run --example stdin
@@ -46,8 +46,7 @@ impl<T: std::io::Read> Read for T {
 #[macro_use]
 extern crate alloc;
 #[cfg(feature = "no_std")]
-use alloc::{vec::Vec, string::String};
-
+use alloc::{string::String, vec::Vec};
 
 /// The type of parsing results.
 pub type Result<T> = core::result::Result<T, &'static str>;
@@ -66,13 +65,14 @@ pub struct Reader<'a> {
     // The source we are reading from,
     value: &'a mut dyn Read,
     // and a 128-byte buffer of data.
-    buffer: Vec<u8>
+    buffer: Vec<u8>,
 }
 
 impl<'a> Reader<'a> {
     pub fn new<T: Read>(value: &'a mut T) -> Reader<'a> {
         Reader {
-            value: value as &mut dyn Read, buffer: Vec::with_capacity(128)
+            value: value as &mut dyn Read,
+            buffer: Vec::with_capacity(128),
         }
     }
 
@@ -80,13 +80,16 @@ impl<'a> Reader<'a> {
     fn get(&mut self) -> Result<u8> {
         if self.buffer.len() == 0 {
             self.buffer.resize(128, 0);
-            let num = self.value.read(self.buffer.as_mut()).ok_or("Error reading data!")?;
+            let num = self
+                .value
+                .read(self.buffer.as_mut())
+                .ok_or("Error reading data!")?;
             self.buffer.truncate(num);
         }
 
         if self.buffer.len() > 0 {
             Ok(self.buffer.remove(0))
-        } else{
+        } else {
             Err("Unexpectedly out of data!")
         }
     }
@@ -128,16 +131,17 @@ impl EDID {
     pub fn parse(r: &mut Reader) -> Result<EDID> {
         ensure(r.read_u32()? == 0xffffff00, "Invalid header.")?;
         ensure(r.read_u32()? == 0x00ffffff, "Invalid header.")?;
-        
+
         // Parse the different parts of the data,
         let product = ProductInformation::parse(r)?;
         let version = Version::parse(r)?;
         let display = DisplayParameters::parse(r)?;
         let mut color = ColorCharacteristics::parse(r)?;
         let mut timings = Timings::parse(r)?;
-        let (descriptors, mut detailed_timings, mut standard_timings, mut white) = MonitorDescriptors::parse(r)?;
+        let (descriptors, mut detailed_timings, mut standard_timings, mut white) =
+            MonitorDescriptors::parse(r)?;
 
-        // And do a little rearranging of the monitor descriptors to 
+        // And do a little rearranging of the monitor descriptors to
         // put the timing information all in one place.
         color.white_points.append(&mut white);
         timings.detailed_timings.append(&mut detailed_timings);
@@ -148,7 +152,13 @@ impl EDID {
         let extensions = r.read_u8()?;
 
         Ok(EDID {
-            product, version, display, color, timings, descriptors, extensions
+            product,
+            version,
+            display,
+            color,
+            timings,
+            descriptors,
+            extensions,
         })
     }
 }
@@ -159,7 +169,7 @@ pub struct ProductInformation {
     pub manufacturer_id: ManufacturerID,
     pub product_code: u16,
     pub serial_number: u32,
-    pub manufacture_date: ManufactureDate
+    pub manufacture_date: ManufactureDate,
 }
 
 impl ProductInformation {
@@ -170,7 +180,10 @@ impl ProductInformation {
         let manufacture_date = ManufactureDate::parse(r)?;
 
         Ok(ProductInformation {
-            manufacturer_id, product_code, serial_number, manufacture_date
+            manufacturer_id,
+            product_code,
+            serial_number,
+            manufacture_date,
         })
     }
 }
@@ -195,7 +208,7 @@ impl ManufacturerID {
 #[derive(Debug, Clone, Copy)]
 pub struct ManufactureDate {
     pub week: u8,
-    pub year: u16
+    pub year: u16,
 }
 
 impl ManufactureDate {
@@ -211,7 +224,7 @@ impl ManufactureDate {
 #[derive(Debug, Clone, Copy)]
 pub struct Version {
     pub version: u8,
-    pub revision: u8
+    pub revision: u8,
 }
 
 impl Version {
@@ -232,7 +245,7 @@ pub struct DisplayParameters {
     /// The display's gamma factor.
     pub gamma: Option<f32>,
     /// DPMS feature support.
-    pub dpms: DPMSFeatures
+    pub dpms: DPMSFeatures,
 }
 
 impl DisplayParameters {
@@ -246,7 +259,7 @@ impl DisplayParameters {
         } else {
             Some(ImageSize {
                 width: max_width as f32,
-                height: max_height as f32
+                height: max_height as f32,
             })
         };
 
@@ -259,8 +272,13 @@ impl DisplayParameters {
 
         let dpms = DPMSFeatures::parse(r)?;
 
-        Ok(DisplayParameters { input, max_size, gamma, dpms })
-    }   
+        Ok(DisplayParameters {
+            input,
+            max_size,
+            gamma,
+            dpms,
+        })
+    }
 }
 
 /// Describes the format of the monitors video input.
@@ -272,12 +290,12 @@ pub enum VideoInput {
         /// Whether a blank-to-black setup is expected.
         setup_expected: bool,
         /// Which sync signals the monitor supports.
-        supported_sync: SupportedSync
+        supported_sync: SupportedSync,
     },
     Digital {
         /// Compatible with VESA DFP 1.x
-        dfp_compatible: bool
-    }
+        dfp_compatible: bool,
+    },
 }
 
 impl VideoInput {
@@ -285,22 +303,40 @@ impl VideoInput {
         let val = r.read_u8()?;
         if val & (1 << 7) == 0 {
             let signal_level = match (val & 0b01100000) >> 5 {
-                0 => SignalLevel { high: 0.700, low: 0.300 },
-                1 => SignalLevel { high: 0.714, low: 0.286 },
-                2 => SignalLevel { high: 1.000, low: 0.400 },
-                3 => SignalLevel { high: 0.700, low: 0.000 },
-                _ => unreachable!()
+                0 => SignalLevel {
+                    high: 0.700,
+                    low: 0.300,
+                },
+                1 => SignalLevel {
+                    high: 0.714,
+                    low: 0.286,
+                },
+                2 => SignalLevel {
+                    high: 1.000,
+                    low: 0.400,
+                },
+                3 => SignalLevel {
+                    high: 0.700,
+                    low: 0.000,
+                },
+                _ => unreachable!(),
             };
             let setup_expected = val & (1 << 4) > 0;
             let supported_sync = SupportedSync {
                 serrated_vsync: val & (1 << 3) > 0,
                 sync_on_green: val & (1 << 2) > 0,
                 composite_sync: val & (1 << 1) > 0,
-                seperate_sync: val & (1 << 0) > 0
+                seperate_sync: val & (1 << 0) > 0,
             };
-            Ok(VideoInput::Analog { signal_level, setup_expected, supported_sync })
+            Ok(VideoInput::Analog {
+                signal_level,
+                setup_expected,
+                supported_sync,
+            })
         } else {
-            Ok(VideoInput::Digital { dfp_compatible: val & 1 > 0 })
+            Ok(VideoInput::Digital {
+                dfp_compatible: val & 1 > 0,
+            })
         }
     }
 }
@@ -309,7 +345,7 @@ impl VideoInput {
 #[derive(Debug, Clone, Copy)]
 pub struct SignalLevel {
     pub high: f32,
-    pub low: f32
+    pub low: f32,
 }
 
 /// Describes what sync signals the monitor accepts.
@@ -322,14 +358,14 @@ pub struct SupportedSync {
     /// Sync on HSync line
     pub composite_sync: bool,
     /// Seperate sync signals supported.
-    pub seperate_sync: bool
+    pub seperate_sync: bool,
 }
 
 /// Image size specified in centimetres.
 #[derive(Debug, Clone, Copy)]
 pub struct ImageSize {
     pub width: f32,
-    pub height: f32
+    pub height: f32,
 }
 
 /// DPMS features supported by the display.
@@ -341,10 +377,10 @@ pub struct DPMSFeatures {
     pub display_type: DisplayType,
     pub default_srgb: bool,
     /// If set, the preferred timing mode is specified
-    /// in the first detailed timing block. 
+    /// in the first detailed timing block.
     pub preferred_timing_mode: bool,
     /// If set, all timings from the standard GTF will work.
-    pub default_gtf_supported: bool
+    pub default_gtf_supported: bool,
 }
 
 impl DPMSFeatures {
@@ -360,11 +396,11 @@ impl DPMSFeatures {
                 1 => DisplayType::RGBColor,
                 2 => DisplayType::OtherColor,
                 3 => DisplayType::Undefined,
-                _ => unreachable!()
+                _ => unreachable!(),
             },
             default_srgb: val & (1 << 2) > 0,
             preferred_timing_mode: val & (1 << 1) > 0,
-            default_gtf_supported: val & (1 << 0) > 0
+            default_gtf_supported: val & (1 << 0) > 0,
         })
     }
 }
@@ -375,7 +411,7 @@ pub enum DisplayType {
     Monochrome,
     RGBColor,
     OtherColor,
-    Undefined
+    Undefined,
 }
 
 /// Color chromaticity coordinates expressed as CIE 1931 x, y coordinates,
@@ -386,7 +422,7 @@ pub struct ColorCharacteristics {
     pub green: (f32, f32),
     pub blue: (f32, f32),
     pub white: (f32, f32),
-    pub white_points: Vec<WhitePoint>
+    pub white_points: Vec<WhitePoint>,
 }
 
 impl ColorCharacteristics {
@@ -416,7 +452,7 @@ impl ColorCharacteristics {
             green: (green_x, green_y),
             blue: (blue_x, blue_y),
             white: (white_x, white_y),
-            white_points: Vec::new()
+            white_points: Vec::new(),
         })
     }
 }
@@ -428,7 +464,7 @@ pub struct WhitePoint {
     pub index: u8,
     pub x: f32,
     pub y: f32,
-    pub gamma: f32
+    pub gamma: f32,
 }
 
 /// The timing modes accepted by the display.
@@ -440,7 +476,7 @@ pub struct Timings {
     pub standard_timings: Vec<StandardTiming>,
     /// Detailed timings specific to the display. If it exists, the first
     /// detailed timing is the preferred timing.
-    pub detailed_timings: Vec<DetailedTiming>
+    pub detailed_timings: Vec<DetailedTiming>,
 }
 
 impl Timings {
@@ -527,20 +563,24 @@ impl Timings {
                 standard_timings.push(StandardTiming {
                     horizontal_resolution: (low as u16 + 31) * 8,
                     aspect_ratio: match high >> 6 {
-                        0 => 16.0/10.0,
-                        1 => 4.0/3.0,
-                        2 => 5.0/4.0,
-                        3 => 16.0/9.0,
-                        _ => unreachable!()
+                        0 => 16.0 / 10.0,
+                        1 => 4.0 / 3.0,
+                        2 => 5.0 / 4.0,
+                        3 => 16.0 / 9.0,
+                        _ => unreachable!(),
                     },
-                    refresh_rate: (high & 0b00111111) + 60
+                    refresh_rate: (high & 0b00111111) + 60,
                 });
             }
         }
 
         let detailed_timings = Vec::new();
 
-        Ok(Timings { established_timings, standard_timings, detailed_timings })
+        Ok(Timings {
+            established_timings,
+            standard_timings,
+            detailed_timings,
+        })
     }
 }
 
@@ -563,7 +603,7 @@ pub enum EstablishedTiming {
     H1024V768F70,
     H1024V768F75,
     H1280V1024F75,
-    H1152V870F75
+    H1152V870F75,
 }
 
 /// A standard timing which contains enough information to derive the
@@ -572,7 +612,7 @@ pub enum EstablishedTiming {
 pub struct StandardTiming {
     pub horizontal_resolution: u16,
     pub aspect_ratio: f32,
-    pub refresh_rate: u8
+    pub refresh_rate: u8,
 }
 
 /// A non-standard timing with all parameters specified.
@@ -594,7 +634,7 @@ pub struct DetailedTiming {
     pub border: (u16, u16),
     pub interlaced: bool,
     pub stereo: StereoType,
-    pub sync_type: SyncType
+    pub sync_type: SyncType,
 }
 
 impl DetailedTiming {
@@ -643,16 +683,19 @@ impl DetailedTiming {
         let sync_length = (horizontal_sync_width, vertical_sync_width);
         let back_porch = (
             horizontal_blanking - horizontal_sync_width - horizontal_front_porch,
-            vertical_blanking - vertical_sync_width - vertical_front_porch
+            vertical_blanking - vertical_sync_width - vertical_front_porch,
         );
 
         let hs_low = r.read_u8()? as u16;
         let vs_low = r.read_u8()? as u16;
         let s_high = r.read_u8()? as u16;
-        
+
         let h_size = hs_low | ((s_high & 0xf0) >> 4) << 8;
         let v_size = vs_low | ((s_high & 0x0f) >> 0) << 8;
-        let image_size = ImageSize { width: (h_size as f32) / 10.0, height: (v_size as f32) / 10.0 };
+        let image_size = ImageSize {
+            width: (h_size as f32) / 10.0,
+            height: (v_size as f32) / 10.0,
+        };
 
         let hb = r.read_u8()? as u16;
         let vb = r.read_u8()? as u16;
@@ -662,8 +705,16 @@ impl DetailedTiming {
         let (interlaced, stereo, sync_type) = SyncType::parse(r)?;
 
         Ok(Some(DetailedTiming {
-            pixel_clock, active, front_porch, sync_length, back_porch, 
-            image_size, border, interlaced, stereo, sync_type
+            pixel_clock,
+            active,
+            front_porch,
+            sync_length,
+            back_porch,
+            image_size,
+            border,
+            interlaced,
+            stereo,
+            sync_type,
         }))
     }
 }
@@ -677,7 +728,7 @@ pub enum StereoType {
     InterleavedLinesRightEven,
     InterleavedLinesLeftEven,
     Interleaved4Way,
-    SideBySide
+    SideBySide,
 }
 
 /// Sync type for a given timing.
@@ -688,15 +739,15 @@ pub enum SyncType {
         /// HSync during VSync
         serrated: bool,
         /// Which line to sync on.
-        line: SyncLine
+        line: SyncLine,
     },
     /// Seperate sync signals.
     Seperate {
         /// Horizontal polarity.
         horizontal: SyncPolarity,
         /// Vertical polarity.
-        vertical: SyncPolarity
-    }
+        vertical: SyncPolarity,
+    },
 }
 
 impl SyncType {
@@ -711,7 +762,7 @@ impl SyncType {
             (false, true, true) => StereoType::InterleavedLinesRightEven,
             (true, false, true) => StereoType::InterleavedLinesLeftEven,
             (true, true, false) => StereoType::Interleaved4Way,
-            (true, true, true) => StereoType::SideBySide
+            (true, true, true) => StereoType::SideBySide,
         };
 
         let sync_type = match (val & 0b00011000) >> 3 {
@@ -721,7 +772,7 @@ impl SyncType {
                     SyncLine::RGB
                 } else {
                     SyncLine::Green
-                }
+                },
             },
             2 => SyncType::Composite {
                 serrated: val & (1 << 2) > 0,
@@ -729,7 +780,7 @@ impl SyncType {
                     SyncPolarity::Positive
                 } else {
                     SyncPolarity::Negative
-                })
+                }),
             },
             3 => SyncType::Seperate {
                 vertical: if val & (1 << 2) > 0 {
@@ -741,9 +792,9 @@ impl SyncType {
                     SyncPolarity::Positive
                 } else {
                     SyncPolarity::Negative
-                }
+                },
             },
-            _ => unreachable!()
+            _ => unreachable!(),
         };
 
         Ok((interlaced, stereo, sync_type))
@@ -755,14 +806,14 @@ impl SyncType {
 pub enum SyncLine {
     RGB,
     Green,
-    Digital(SyncPolarity)
+    Digital(SyncPolarity),
 }
 
 /// The direction of the sync pulse.
 #[derive(Debug, Clone, Copy)]
 pub enum SyncPolarity {
     Positive,
-    Negative
+    Negative,
 }
 
 /// Additional monitor information.
@@ -770,8 +821,16 @@ pub enum SyncPolarity {
 pub struct MonitorDescriptors(pub Vec<MonitorDescriptor>);
 
 impl MonitorDescriptors {
-    fn parse(r: &mut Reader) -> Result<(MonitorDescriptors, Vec<DetailedTiming>, Vec<StandardTiming>, Vec<WhitePoint>)> {
-        let mut detailed_timings = vec![DetailedTiming::parse(r)?.ok_or("Expected detailed timing block.")?];
+    fn parse(
+        r: &mut Reader,
+    ) -> Result<(
+        MonitorDescriptors,
+        Vec<DetailedTiming>,
+        Vec<StandardTiming>,
+        Vec<WhitePoint>,
+    )> {
+        let mut detailed_timings =
+            vec![DetailedTiming::parse(r)?.ok_or("Expected detailed timing block.")?];
 
         let mut standard_timings = Vec::new();
         let mut monitor_descriptors = Vec::new();
@@ -785,37 +844,45 @@ impl MonitorDescriptors {
                 r.read_u8()?;
 
                 match tag {
-                    0x00..=0x0f => monitor_descriptors.push(MonitorDescriptor::ManufacturerDefined(tag, [
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?
-                    ])),
+                    0x00..=0x0f => {
+                        monitor_descriptors.push(MonitorDescriptor::ManufacturerDefined(
+                            tag,
+                            [
+                                r.read_u8()?,
+                                r.read_u8()?,
+                                r.read_u8()?,
+                                r.read_u8()?,
+                                r.read_u8()?,
+                                r.read_u8()?,
+                                r.read_u8()?,
+                                r.read_u8()?,
+                                r.read_u8()?,
+                                r.read_u8()?,
+                                r.read_u8()?,
+                                r.read_u8()?,
+                                r.read_u8()?,
+                            ],
+                        ))
+                    }
                     0x10 => continue,
-                    0x11..=0xf9 => monitor_descriptors.push(MonitorDescriptor::Undefined(tag, [
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?,
-                        r.read_u8()?
-                    ])),
+                    0x11..=0xf9 => monitor_descriptors.push(MonitorDescriptor::Undefined(
+                        tag,
+                        [
+                            r.read_u8()?,
+                            r.read_u8()?,
+                            r.read_u8()?,
+                            r.read_u8()?,
+                            r.read_u8()?,
+                            r.read_u8()?,
+                            r.read_u8()?,
+                            r.read_u8()?,
+                            r.read_u8()?,
+                            r.read_u8()?,
+                            r.read_u8()?,
+                            r.read_u8()?,
+                            r.read_u8()?,
+                        ],
+                    )),
                     0xfa => {
                         for _ in 0..6 {
                             let low = r.read_u8()?;
@@ -826,30 +893,37 @@ impl MonitorDescriptors {
                                 standard_timings.push(StandardTiming {
                                     horizontal_resolution: (low as u16 + 31) * 8,
                                     aspect_ratio: match high >> 6 {
-                                        0 => 16.0/10.0,
-                                        1 => 4.0/3.0,
-                                        2 => 5.0/4.0,
-                                        3 => 16.0/9.0,
-                                        _ => unreachable!()
+                                        0 => 16.0 / 10.0,
+                                        1 => 4.0 / 3.0,
+                                        2 => 5.0 / 4.0,
+                                        3 => 16.0 / 9.0,
+                                        _ => unreachable!(),
                                     },
-                                    refresh_rate: (high & 0b00111111) + 60
+                                    refresh_rate: (high & 0b00111111) + 60,
                                 });
                             }
                         }
 
                         ensure(r.read_u8()? == 0x0a, "Expected 0x0a in monitor descriptor.")?;
-                    },
+                    }
                     0xfb => {
                         for _ in 0..2 {
                             let index = r.read_u8()?;
-                            let w_low = r.read_u8()? as u16; 
+                            let w_low = r.read_u8()? as u16;
                             let wx_high = r.read_u8()? as u16;
                             let wy_high = r.read_u8()? as u16;
-                            let white_x = (wx_high << 2 | (w_low & 0b00001100) >> 2) as f32 / 1024.0;
-                            let white_y = (wy_high << 2 | (w_low & 0b00000011) >> 0) as f32 / 1024.0;
+                            let white_x =
+                                (wx_high << 2 | (w_low & 0b00001100) >> 2) as f32 / 1024.0;
+                            let white_y =
+                                (wy_high << 2 | (w_low & 0b00000011) >> 0) as f32 / 1024.0;
                             let gamma_val = r.read_u8()? as u16;
                             let gamma = (gamma_val as f32 + 100.0) / 100.0;
-                            white_points.push(WhitePoint { x: white_x, y: white_y, gamma, index });
+                            white_points.push(WhitePoint {
+                                x: white_x,
+                                y: white_y,
+                                gamma,
+                                index,
+                            });
                             if index == 0 {
                                 r.read_u32()?;
                                 r.read_u8()?;
@@ -858,8 +932,11 @@ impl MonitorDescriptors {
                         }
 
                         ensure(r.read_u8()? == 0x0a, "Expected 0x0a in monitor descriptor.")?;
-                        ensure(r.read_u16()? == 0x2020, "Expected 0x20 in monitor descriptor.")?;
-                    },
+                        ensure(
+                            r.read_u16()? == 0x2020,
+                            "Expected 0x20 in monitor descriptor.",
+                        )?;
+                    }
                     0xfc | 0xfe | 0xff => {
                         let mut out = String::new();
                         let mut byte = r.read_u8()?;
@@ -882,9 +959,9 @@ impl MonitorDescriptors {
                             0xfc => monitor_descriptors.push(MonitorDescriptor::MonitorName(out)),
                             0xfe => monitor_descriptors.push(MonitorDescriptor::OtherString(out)),
                             0xff => monitor_descriptors.push(MonitorDescriptor::SerialNumber(out)),
-                            _ => unreachable!()
+                            _ => unreachable!(),
                         }
-                    },
+                    }
                     0xfd => {
                         let min_vrate = r.read_u8()?;
                         let max_vrate = r.read_u8()?;
@@ -894,23 +971,42 @@ impl MonitorDescriptors {
                         let stime = r.read_u8()?;
                         let secondary_timing = match stime {
                             0x00 => {
-                                ensure(r.read_u8()? == 0x0a, "Expected 0x0a in monitor descriptor.")?;
-                                ensure(r.read_u16()? == 0x2020, "Expected 0x20 in monitor descriptor.")?;
-                                ensure(r.read_u16()? == 0x2020, "Expected 0x20 in monitor descriptor.")?;
-                                ensure(r.read_u16()? == 0x2020, "Expected 0x20 in monitor descriptor.")?;
+                                ensure(
+                                    r.read_u8()? == 0x0a,
+                                    "Expected 0x0a in monitor descriptor.",
+                                )?;
+                                ensure(
+                                    r.read_u16()? == 0x2020,
+                                    "Expected 0x20 in monitor descriptor.",
+                                )?;
+                                ensure(
+                                    r.read_u16()? == 0x2020,
+                                    "Expected 0x20 in monitor descriptor.",
+                                )?;
+                                ensure(
+                                    r.read_u16()? == 0x2020,
+                                    "Expected 0x20 in monitor descriptor.",
+                                )?;
                                 SecondaryTiming::None
-                            },
+                            }
                             0x02 => {
-                                ensure(r.read_u8()? == 0x00, "Expected 0x0a in monitor descriptor.")?;
+                                ensure(
+                                    r.read_u8()? == 0x00,
+                                    "Expected 0x0a in monitor descriptor.",
+                                )?;
                                 let start_horizontal_freq = r.read_u8()? as u32 * 2000;
                                 let c = r.read_u8()? as f32 / 2.0;
                                 let m = r.read_u16()? as f32;
                                 let k = r.read_u8()? as f32;
                                 let j = r.read_u8()? as f32 / 2.0;
                                 SecondaryTiming::GTF {
-                                    start_horizontal_freq, c, m, k, j
+                                    start_horizontal_freq,
+                                    c,
+                                    m,
+                                    k,
+                                    j,
                                 }
-                            },
+                            }
                             _ => {
                                 let data = [
                                     r.read_u8()?,
@@ -919,7 +1015,7 @@ impl MonitorDescriptors {
                                     r.read_u8()?,
                                     r.read_u8()?,
                                     r.read_u8()?,
-                                    r.read_u8()?
+                                    r.read_u8()?,
                                 ];
                                 SecondaryTiming::Other(stime, data)
                             }
@@ -927,14 +1023,20 @@ impl MonitorDescriptors {
                         monitor_descriptors.push(MonitorDescriptor::RangeLimits {
                             vertical_rate: (min_vrate, max_vrate),
                             horizontal_rate: (min_hrate, max_hrate),
-                            pixel_clock, secondary_timing
+                            pixel_clock,
+                            secondary_timing,
                         });
                     }
                 }
             }
         }
 
-        Ok((MonitorDescriptors(monitor_descriptors), detailed_timings, standard_timings, white_points))
+        Ok((
+            MonitorDescriptors(monitor_descriptors),
+            detailed_timings,
+            standard_timings,
+            white_points,
+        ))
     }
 }
 
@@ -951,11 +1053,11 @@ pub enum MonitorDescriptor {
         /// Pixel frequency limits in Hz.
         pixel_clock: u32,
         /// Seconday timing information.
-        secondary_timing: SecondaryTiming
+        secondary_timing: SecondaryTiming,
     },
     MonitorName(String),
     Undefined(u8, [u8; 13]),
-    ManufacturerDefined(u8, [u8; 13])
+    ManufacturerDefined(u8, [u8; 13]),
 }
 
 /// Parameters for a secondary timing formula.
@@ -969,9 +1071,9 @@ pub enum SecondaryTiming {
         c: f32,
         m: f32,
         k: f32,
-        j: f32
+        j: f32,
     },
-    Other(u8, [u8; 7])
+    Other(u8, [u8; 7]),
 }
 
 /// Parse EDID data from a Read value.
